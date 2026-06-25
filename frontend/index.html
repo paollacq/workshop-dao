@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Workshop DAO — Eleição da Seleção</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js"></script>
+<style>
+  /* Tokens*/
+  :root {
+    --bg:       #0b0c1a;
+    --surface:  #13152e;
+    --card:     #1b1f40;
+    --border:   #2a2f5a;
+    --primary:  #7c5cfc;
+    --accent:   #00e5b0;
+    --danger:   #ff4c6a;
+    --text:     #e8eaf0;
+    --muted:    #7880a0;
+    --gold:     #f5c842;
+    --radius:   14px;
+    --mono:     'JetBrains Mono', 'Fira Mono', 'Courier New', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+    min-height: 100vh;
+  }
+
+  /*  Grid  */
+  .shell {
+    max-width: 820px;
+    margin: 0 auto;
+    padding: 28px 20px 60px;
+  }
+
+  /*  Header  */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 36px;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .logo-mark {
+    width: 38px; height: 38px;
+    background: var(--primary);
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -1px;
+    color: #fff;
+  }
+  .logo-text { font-size: 17px; font-weight: 600; }
+  .logo-sub  { font-size: 11px; color: var(--muted); letter-spacing: .05em; text-transform: uppercase; }
+
+  /*  Connect button  */
+  #btn-connect {
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity .15s, transform .1s;
+  }
+  #btn-connect:hover { opacity: .88; transform: translateY(-1px); }
+  #btn-connect:active { transform: translateY(0); }
+  #btn-connect:disabled { opacity: .45; cursor: default; transform: none; }
+
+  .wallet-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 13px;
+    font-family: var(--mono);
+  }
+  .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    flex-shrink: 0;
+  }
+  .dot.red   { background: var(--danger); }
+  .dot.amber { background: var(--gold); }
+
+  /*  Cards ─ */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 22px 24px;
+    margin-bottom: 18px;
+  }
+  .card-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+
+  /*  Status bar  */
+  .status-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    background: #1e223e;
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+  .badge.active  { border-color: var(--accent); color: var(--accent); }
+  .badge.pending { border-color: var(--gold);   color: var(--gold);   }
+  .badge.ended   { border-color: var(--muted);  color: var(--muted);  }
+  .badge.success { border-color: var(--accent); color: var(--accent); }
+  .badge.danger  { border-color: var(--danger); color: var(--danger); }
+
+  /*  Stats row */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-top: 14px;
+  }
+  .stat {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    text-align: center;
+  }
+  .stat-val { font-size: 22px; font-weight: 700; color: var(--text); }
+  .stat-lbl { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  /*  Candidatos  */
+  .candidatos { display: flex; flex-direction: column; gap: 14px; }
+
+  .candidato {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 18px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    align-items: center;
+    transition: border-color .2s;
+  }
+  .candidato:hover    { border-color: var(--primary); }
+  .candidato.winner   { border-color: var(--gold); background: #1e1a0a; }
+  .candidato.my-vote  { border-color: var(--accent); }
+
+  .candidato-nome {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .trophy { font-size: 18px; }
+
+  .bar-wrap {
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 4px;
+  }
+  .bar {
+    height: 100%;
+    border-radius: 3px;
+    background: var(--primary);
+    transition: width .5s ease;
+  }
+  .candidato.winner .bar { background: var(--gold); }
+  .candidato.my-vote .bar { background: var(--accent); }
+
+  .bar-pct {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  .btn-vote {
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: 9px;
+    padding: 10px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: opacity .15s, transform .1s;
+    min-width: 90px;
+  }
+  .btn-vote:hover   { opacity: .85; transform: translateY(-1px); }
+  .btn-vote:active  { transform: translateY(0); }
+  .btn-vote:disabled {
+    opacity: .35;
+    cursor: default;
+    transform: none;
+    background: var(--border);
+    color: var(--muted);
+  }
+  .voted-chip {
+    font-size: 12px;
+    color: var(--accent);
+    font-weight: 600;
+    padding: 8px 12px;
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    text-align: center;
+  }
+
+  /*  Delegate  */
+  .delegate-section {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .delegate-info { font-size: 13px; color: var(--muted); max-width: 480px; }
+  .delegate-info strong { color: var(--text); }
+
+  .btn-delegate {
+    background: transparent;
+    color: var(--accent);
+    border: 1.5px solid var(--accent);
+    border-radius: 9px;
+    padding: 9px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background .15s, color .15s;
+  }
+  .btn-delegate:hover { background: var(--accent); color: var(--bg); }
+  .btn-delegate:disabled { opacity: .35; cursor: default; }
+
+  /*  Log ─ */
+  #log {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    max-height: 160px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .log-line { display: flex; gap: 8px; }
+  .log-ts   { color: var(--border); flex-shrink: 0; }
+  .log-msg.ok   { color: var(--accent); }
+  .log-msg.err  { color: var(--danger); }
+  .log-msg.info { color: var(--text); }
+
+  /*  Config modal  */
+  .config-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  @media (max-width: 520px) { .config-row { grid-template-columns: 1fr; } }
+
+  label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 5px; }
+  input {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 9px 12px;
+    outline: none;
+    transition: border-color .15s;
+  }
+  input:focus { border-color: var(--primary); }
+
+  .btn-save {
+    width: 100%;
+    margin-top: 14px;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: 9px;
+    padding: 11px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: opacity .15s;
+  }
+  .btn-save:hover { opacity: .85; }
+
+  /*  Misc */
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 20px 0;
+  }
+  a { color: var(--primary); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .section-title {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  /*  Spinner  */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+    vertical-align: middle;
+  }
+
+  /*  Pulse animation for live indicator  */
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: .4; }
+  }
+  .live-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 1.4s ease-in-out infinite;
+    display: inline-block;
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!--  Header  -->
+  <header>
+    <div class="logo">
+      <div class="logo-mark">wD</div>
+      <div>
+        <div class="logo-text">Workshop DAO</div>
+        <div class="logo-sub">Governança Descentralizada · Sepolia</div>
+      </div>
+    </div>
+
+    <div id="wallet-area">
+      <button id="btn-connect">Conectar MetaMask</button>
+    </div>
+  </header>
+
+  <!--  Config de contratos ─ -->
+  <div class="card" id="config-card">
+    <div class="card-title">Configuração dos Contratos</div>
+    <div class="config-row">
+      <div>
+        <label>GovToken (wDAO)</label>
+        <input id="in-token"    placeholder="0x..." />
+      </div>
+      <div>
+        <label>WorkshopGovernor</label>
+        <input id="in-governor" placeholder="0x..." />
+      </div>
+    </div>
+    <div style="margin-top:12px">
+      <label>Proposal ID</label>
+      <input id="in-proposal" placeholder="123456789..." />
+    </div>
+    <button class="btn-save" id="btn-save-config">Salvar e carregar proposta</button>
+  </div>
+
+  <!--  Status da proposta  -->
+  <div class="card" id="proposal-card" style="display:none">
+    <div class="card-title">Proposta Ativa</div>
+    <div class="status-row">
+      <span id="badge-state" class="badge">—</span>
+      <span style="font-size:13px;color:var(--muted)" id="proposal-id-short">—</span>
+      <span style="flex:1"></span>
+      <a id="etherscan-link" href="#" target="_blank" style="font-size:12px">Ver no Etherscan ↗</a>
+    </div>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-val" id="stat-for">—</div>
+        <div class="stat-lbl">A Favor (wDAO)</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val" id="stat-against">—</div>
+        <div class="stat-lbl">Contra (wDAO)</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val" id="stat-quorum">—</div>
+        <div class="stat-lbl">Quórum necessário</div>
+      </div>
+    </div>
+  </div>
+
+  <!--  Delegação  -->
+  <div class="card" id="delegate-card" style="display:none">
+    <div class="card-title">Delegação de Voto</div>
+    <div class="delegate-section">
+      <div class="delegate-info">
+        <strong>Antes de votar, delegue seu poder de voto.</strong><br>
+        Mesmo que seja para si mesmo — sem isso, seus tokens não contam.
+        Seu saldo: <strong id="token-balance">—</strong> wDAO
+        · Voting power: <strong id="voting-power">—</strong> wDAO
+      </div>
+      <button class="btn-delegate" id="btn-delegate">Delegar para mim</button>
+    </div>
+  </div>
+
+  <!--  Candidatos / Votação ─ -->
+  <div id="voting-section" style="display:none">
+    <div class="section-title">
+      <span class="live-dot"></span>
+      Eleição · Melhor Jogador da Seleção
+    </div>
+
+    <div class="candidatos" id="candidatos-list">
+      <!-- gerado dinamicamente -->
+    </div>
+  </div>
+
+  <!--  Log ─ -->
+  <div class="card" style="margin-top:24px" id="log-card" style="display:none">
+    <div class="card-title">Log de transações</div>
+    <div id="log"></div>
+  </div>
+
+</div>
+
+<script>
+// Configuração
+
+// Candidatos à eleição — cada suporte (1,2,3) mapeia a um jogador
+// O Governor usa VoteType: 0=Against, 1=For, 2=Abstain
+// Aqui reaproveitamos support como "código do candidato"
+// (simplificação pedagógica: votar "A favor" = Vinicius, etc.)
+// Para uma DAO real com múltiplos candidatos, você criaria um
+// contrato de tally separado ou usaría GovernorCountingOverridable.
+const CANDIDATOS = [
+  { id: 1, nome: "Vinicius Jr.",  emoji: "⚽", suporte: 1 },
+  { id: 2, nome: "Rodrygo",       emoji: "⚽", suporte: 2 },
+  { id: 3, nome: "Endrick",       emoji: "⚽", suporte: 0 },
+];
+
+// ABI mínima necessária
+const GOV_ABI = [
+  "function state(uint256 proposalId) view returns (uint8)",
+  "function proposalVotes(uint256 proposalId) view returns (uint256 againstVotes, uint256 forVotes, uint256 abstainVotes)",
+  "function quorum(uint256 blockNumber) view returns (uint256)",
+  "function getVotes(address account, uint256 timepoint) view returns (uint256)",
+  "function proposalSnapshot(uint256 proposalId) view returns (uint256)",
+  "function hasVoted(uint256 proposalId, address account) view returns (bool)",
+  "function castVote(uint256 proposalId, uint8 support) returns (uint256)",
+  "function votingDeadline(uint256 proposalId) view returns (uint256)",
+  "event VoteCast(address indexed voter, uint256 proposalId, uint8 support, uint256 weight, string reason)",
+];
+
+const TOKEN_ABI = [
+  "function balanceOf(address) view returns (uint256)",
+  "function delegate(address delegatee)",
+  "function delegates(address account) view returns (address)",
+  "function getVotes(address account) view returns (uint256)",
+  "function decimals() view returns (uint8)",
+];
+
+const STATE_LABEL = [
+  "Pending","Active","Canceled","Defeated",
+  "Succeeded","Queued","Expired","Executed"
+];
+const STATE_CLASS = [
+  "pending","active","ended","danger",
+  "success","pending","ended","success"
+];
+
+// Estado global
+let provider, signer, walletAddress;
+let govContract, tokenContract;
+let proposalId, decimals;
+let pollInterval;
+let myVoteSupport = null;
+
+// Log helper
+function log(msg, type = "info") {
+  document.getElementById("log-card").style.display = "";
+  const el   = document.getElementById("log");
+  const ts   = new Date().toLocaleTimeString("pt-BR");
+  const line = document.createElement("div");
+  line.className = "log-line";
+  line.innerHTML = `<span class="log-ts">${ts}</span><span class="log-msg ${type}">${msg}</span>`;
+  el.prepend(line);
+}
+
+// Conectar MetaMask
+document.getElementById("btn-connect").addEventListener("click", async () => {
+  if (!window.ethereum) {
+    alert("MetaMask não detectada. Instale em metamask.io");
+    return;
+  }
+  const btn = document.getElementById("btn-connect");
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Conectando...';
+
+  try {
+    // 1. Pedir acesso à conta (sem criar provider ainda)
+    await window.ethereum.request({ method: "eth_requestAccounts" });
+
+    // 2. Trocar para Sepolia ANTES de criar o provider
+    const chainId = await window.ethereum.request({ method: "eth_chainId" });
+    if (chainId !== "0xaa36a7") {
+      try {
+        await window.ethereum.request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: "0xaa36a7" }],
+        });
+      } catch {
+        log("⚠️ Mude manualmente para a rede Sepolia na MetaMask", "err");
+      }
+    }
+
+    // 3. Criar provider já na rede correta
+    provider = new ethers.BrowserProvider(window.ethereum);
+    signer        = await provider.getSigner();
+    walletAddress = await signer.getAddress();
+
+    const short = walletAddress.slice(0, 6) + "…" + walletAddress.slice(-4);
+    document.getElementById("wallet-area").innerHTML = `
+      <div class="wallet-chip">
+        <span class="dot"></span>
+        ${short}
+      </div>`;
+    log(`Carteira conectada: ${walletAddress}`, "ok");
+
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = "Conectar MetaMask";
+    log("Erro ao conectar: " + (e.message ?? e), "err");
+  }
+});
+
+// Salvar config e carregar proposta
+document.getElementById("btn-save-config").addEventListener("click", async () => {
+  if (!signer) { alert("Conecte a MetaMask primeiro."); return; }
+
+  const tokenAddr = document.getElementById("in-token").value.trim();
+  const govAddr   = document.getElementById("in-governor").value.trim();
+  const propId    = document.getElementById("in-proposal").value.trim();
+
+  if (!ethers.isAddress(tokenAddr) || !ethers.isAddress(govAddr) || !propId) {
+    alert("Preencha todos os campos corretamente."); return;
+  }
+
+  proposalId    = BigInt(propId);
+  govContract   = new ethers.Contract(govAddr, GOV_ABI, signer);
+  tokenContract = new ethers.Contract(tokenAddr, TOKEN_ABI, signer);
+  decimals      = await tokenContract.decimals();
+
+  log("Contratos carregados", "ok");
+
+  // Mostrar cards
+  document.getElementById("proposal-card").style.display = "";
+  document.getElementById("delegate-card").style.display = "";
+  document.getElementById("voting-section").style.display = "";
+
+  const short = propId.slice(0, 8) + "…";
+  document.getElementById("proposal-id-short").textContent = `ID: ${short}`;
+  document.getElementById("etherscan-link").href =
+    `https://sepolia.etherscan.io/address/${govAddr}`;
+
+  // Renderizar candidatos
+  renderCandidatos();
+
+  // Carregar dados
+  await refreshAll();
+
+  // Polling a cada 12 s
+  if (pollInterval) clearInterval(pollInterval);
+  pollInterval = setInterval(refreshAll, 12000);
+});
+
+// Refresh de dados
+async function refreshAll() {
+  try {
+    await Promise.all([refreshProposal(), refreshWallet()]);
+  } catch (e) {
+    log("Erro ao atualizar: " + e.message, "err");
+  }
+}
+
+async function refreshProposal() {
+  const [state, votes, block] = await Promise.all([
+    govContract.state(proposalId),
+    govContract.proposalVotes(proposalId),
+    provider.getBlockNumber(),
+  ]);
+  const quorum = await govContract.quorum(block - 1);
+
+  const stateN = Number(state);
+  const badge  = document.getElementById("badge-state");
+  badge.textContent = STATE_LABEL[stateN] ?? String(stateN);
+  badge.className   = "badge " + (STATE_CLASS[stateN] ?? "");
+
+  const fmt = (v) => parseFloat(ethers.formatUnits(v, decimals)).toFixed(1);
+  document.getElementById("stat-for").textContent     = fmt(votes[1]);
+  document.getElementById("stat-against").textContent = fmt(votes[0]);
+  document.getElementById("stat-quorum").textContent  = fmt(quorum);
+
+  // Atualizar barras dos candidatos
+  const total = votes[0] + votes[1] + votes[2];
+  updateBars(votes, total);
+
+  // Verificar se já votou
+  if (walletAddress) {
+    const already = await govContract.hasVoted(proposalId, walletAddress);
+    if (already && myVoteSupport === null) {
+      myVoteSupport = -1; // votou mas não sabemos em quem (sessão anterior)
+    }
+    toggleVoteButtons(stateN, already);
+  }
+}
+
+async function refreshWallet() {
+  if (!walletAddress) return;
+  const [bal, vp] = await Promise.all([
+    tokenContract.balanceOf(walletAddress),
+    tokenContract.getVotes(walletAddress),
+  ]);
+  const fmt = (v) => parseFloat(ethers.formatUnits(v, decimals)).toFixed(2);
+  document.getElementById("token-balance").textContent = fmt(bal);
+  document.getElementById("voting-power").textContent  = fmt(vp);
+}
+
+// Render candidatos
+function renderCandidatos() {
+  const list = document.getElementById("candidatos-list");
+  list.innerHTML = CANDIDATOS.map(c => `
+    <div class="candidato" id="cand-${c.id}">
+      <div>
+        <div class="candidato-nome">
+          <span>${c.emoji}</span>
+          <span>${c.nome}</span>
+          <span class="trophy" id="trophy-${c.id}" style="display:none">🏆</span>
+        </div>
+        <div class="bar-wrap">
+          <div class="bar" id="bar-${c.id}" style="width:0%"></div>
+        </div>
+        <div class="bar-pct" id="pct-${c.id}">0 wDAO · 0%</div>
+      </div>
+      <div id="action-${c.id}">
+        <button class="btn-vote" data-support="${c.suporte}" data-name="${c.nome}"
+                onclick="castVote(${c.suporte}, '${c.nome}')">
+          Votar
+        </button>
+      </div>
+    </div>
+  `).join("");
+}
+
+function updateBars(votes, total) {
+  // votes: [against, for, abstain] → mapeamos para candidatos
+  // against → Endrick (suporte 0), for → Vinicius (1), abstain → Rodrygo (2)
+  const map = { 0: votes[0], 1: votes[1], 2: votes[2] };
+
+  let winnerSupport = -1, winnerVal = -1n;
+  for (const c of CANDIDATOS) {
+    const v = map[c.suporte] ?? 0n;
+    if (v > winnerVal) { winnerVal = v; winnerSupport = c.suporte; }
+  }
+
+  for (const c of CANDIDATOS) {
+    const v   = map[c.suporte] ?? 0n;
+    const pct = total > 0n ? Number((v * 100n) / total) : 0;
+    const fmt = parseFloat(ethers.formatUnits(v, decimals)).toFixed(1);
+
+    document.getElementById(`bar-${c.id}`).style.width = pct + "%";
+    document.getElementById(`pct-${c.id}`).textContent = `${fmt} wDAO · ${pct}%`;
+
+    const card = document.getElementById(`cand-${c.id}`);
+    card.classList.toggle("winner", c.suporte === winnerSupport && winnerVal > 0n);
+    document.getElementById(`trophy-${c.id}`).style.display =
+      (c.suporte === winnerSupport && winnerVal > 0n) ? "" : "none";
+
+    if (myVoteSupport === c.suporte) card.classList.add("my-vote");
+  }
+}
+
+function toggleVoteButtons(stateN, hasVoted) {
+  const isActive = stateN === 1;
+  for (const c of CANDIDATOS) {
+    const area = document.getElementById(`action-${c.id}`);
+    if (hasVoted) {
+      if (myVoteSupport === c.suporte) {
+        area.innerHTML = `<div class="voted-chip">✓ Seu voto</div>`;
+      } else {
+        area.innerHTML = `<button class="btn-vote" disabled>Votar</button>`;
+      }
+    } else {
+      const btn = area.querySelector("button");
+      if (btn) btn.disabled = !isActive;
+    }
+  }
+}
+
+// Votar
+async function castVote(support, nome) {
+  if (!govContract || !signer) return;
+  const btn = document.querySelector(`[data-support="${support}"]`);
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>'; }
+
+  try {
+    log(`Enviando voto em ${nome}...`, "info");
+    const tx = await govContract.castVote(proposalId, support);
+    log(`Tx enviada: ${tx.hash.slice(0,10)}…`, "info");
+    await tx.wait();
+    myVoteSupport = support;
+    log(`✓ Voto em ${nome} registrado onchain!`, "ok");
+    document.getElementById(`cand-${support + 1}`).classList.add("my-vote");
+    await refreshAll();
+  } catch (e) {
+    log("Erro ao votar: " + (e.reason ?? e.message), "err");
+    if (btn) { btn.disabled = false; btn.textContent = "Votar"; }
+  }
+}
+
+// Delegar
+document.getElementById("btn-delegate").addEventListener("click", async () => {
+  if (!tokenContract || !walletAddress) return;
+  const btn = document.getElementById("btn-delegate");
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Delegando...';
+
+  try {
+    log("Delegando voting power para si mesmo...", "info");
+    const tx = await tokenContract.delegate(walletAddress);
+    log(`Tx: ${tx.hash.slice(0, 10)}…`, "info");
+    await tx.wait();
+    log("✓ Delegação concluída! Voting power ativo.", "ok");
+    await refreshWallet();
+  } catch (e) {
+    log("Erro ao delegar: " + (e.reason ?? e.message), "err");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Delegar para mim";
+  }
+});
+</script>
+</body>
+</html>

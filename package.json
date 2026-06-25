@@ -1,0 +1,22 @@
+{
+  "name": "workshop-dao",
+  "version": "1.0.0",
+  "description": "Workshop DAO — Governança Descentralizada na Prática",
+  "scripts": {
+    "compile":        "npx hardhat compile",
+    "deploy:local":   "npx hardhat run scripts/deploy.js --network hardhat",
+    "deploy:sepolia": "npx hardhat run scripts/deploy.js --network sepolia",
+    "propose":        "npx hardhat run scripts/propose.js --network sepolia",
+    "vote":           "npx hardhat run scripts/vote.js --network sepolia",
+    "execute":        "npx hardhat run scripts/execute.js --network sepolia",
+    "distribuir":     "npx hardhat run scripts/distribuir.js --network sepolia"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "hardhat": "^2.22.0"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.0.0",
+    "dotenv": "^16.4.0"
+  }
+}

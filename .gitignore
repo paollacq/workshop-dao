@@ -1,0 +1,29 @@
+# Dependências
+node_modules/
+
+# Variáveis de ambiente (nunca versionar chaves privadas!)
+.env
+.env.local
+.env.*.local
+
+# Artefatos gerados pelo Hardhat (recompilados com `npm run compile`)
+artifacts/
+cache/
+typechain-types/
+
+# Cobertura de testes
+coverage/
+coverage.json
+
+# Scripts — outputs gerados durante execução
+ignition/deployments/
+scripts
+README.md
+
+# Logs
+*.log
+npm-debug.log*
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
