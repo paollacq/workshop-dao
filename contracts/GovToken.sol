@@ -14,7 +14,7 @@ import "@openzeppelin/contracts/utils/Nonces.sol";
  * ERC20Votes grava um "checkpoint" a cada transferência:
  * salva (número do bloco, saldo) para cada endereço.
  * O Governor consulta sempre o checkpoint do bloco ANTERIOR
- * à criação de uma proposta — isso impede que alguém compre
+ * à criação de uma proposta, isso impede que alguém compre
  * tokens depois que a proposta foi criada para influenciar o resultado.
  *
  * ATENÇÃO: o holder precisa chamar delegate() (mesmo para si mesmo)
@@ -49,11 +49,17 @@ contract GovToken is ERC20, ERC20Permit, ERC20Votes {
     {
         return super.nonces(owner);
     }
-
+    
+    // toda movimentação de tokens dispara _update
     function _update(address from, address to, uint256 value)
         internal
         override(ERC20, ERC20Votes)
     {
+        // grava o checkpoint ANTES de mover
         super._update(from, to, value);
+        /**
+         * Governor sempre consulta o saldo no bloco anterior à proposta ser criada,
+         * não o saldo atual. Isso impede ataques de última hora.
+         */
     }
 }
