@@ -3,6 +3,11 @@
  * Valida a eleição multi-candidato e o registro trustless do vencedor.
  *
  *   npx hardhat test
+ *
+ * CORREÇÕES v2:
+ *   - Importa scripts/candidatos.js (que antes era inexistente).
+ *   - Atualizado para 27 candidatos (Rodrygo adicionado em idx 25, Vini Jr. em idx 26).
+ *   - Índices de voto atualizados: Endrick=17, Vini=26.
  */
 const { expect } = require("chai");
 const { ethers, network } = require("hardhat");
@@ -22,19 +27,18 @@ async function deployDAO() {
   const target = await (await ethers.getContractFactory("VotingTarget"))
     .deploy(await timelock.getAddress(), await gov.getAddress(), NOMES_ONCHAIN);
 
+  // Governor precisa das roles de PROPOSER e EXECUTOR no Timelock.
+  // Em produção, revogar também a ADMIN_ROLE do deployer para descentralizar.
   await timelock.grantRole(await timelock.PROPOSER_ROLE(), await gov.getAddress());
   await timelock.grantRole(await timelock.EXECUTOR_ROLE(), await gov.getAddress());
 
   const dec = await token.decimals();
-  const amt = (x) => BigInt(x) * 10n ** dec;
-  await token.transfer(v1.address, amt(30));
-  await token.transfer(v2.address, amt(20));
-  await token.transfer(v3.address, amt(10));
-  await token.delegate(fac.address);
-  await token.connect(v1).delegate(v1.address);
-  await token.connect(v2).delegate(v2.address);
-  await token.connect(v3).delegate(v3.address);
-  await mine(1);
+  // Cada participante chama claimAndDelegate() — recebe 100 wDAO e delega em 1 tx.
+  // O facilitador já recebeu 100 wDAO e foi auto-delegado no constructor.
+  await token.connect(v1).claimAndDelegate();
+  await token.connect(v2).claimAndDelegate();
+  await token.connect(v3).claimAndDelegate();
+  await mine(1); // avança um bloco para consolidar os checkpoints
 
   return { fac, v1, v2, v3, token, timelock, gov, target, dec };
 }
@@ -45,52 +49,87 @@ async function abrirProposta(gov, target) {
   const args = [[await target.getAddress()], [0], [calldata], descHash];
   const tx = await gov.propose(args[0], args[1], args[2], DESCRICAO);
   const rc = await tx.wait();
-  const ev = rc.logs.map((l) => { try { return gov.interface.parseLog(l); } catch { return null; } })
+  const ev = rc.logs
+    .map((l) => { try { return gov.interface.parseLog(l); } catch { return null; } })
     .find((e) => e?.name === "ProposalCreated");
   return { pid: ev.args.proposalId, args };
 }
 
 describe("Eleição multi-candidato (GovernorCountingMulti + VotingTarget trustless)", () => {
+
+  it("deve ter 27 candidatos no Governor e no VotingTarget", async () => {
+    const { gov, target } = await deployDAO();
+    // CORREÇÃO: era 26, agora 27 (Rodrygo adicionado)
+    expect(await gov.numCandidates()).to.equal(27);
+    expect(await target.numCandidatos()).to.equal(27);
+  });
+
+  it("proposalId é reconstruível pelos mesmos parâmetros", async () => {
+    const { gov, target } = await deployDAO();
+    const { pid, args } = await abrirProposta(gov, target);
+    expect(pid).to.equal(await gov.hashProposal(...args));
+  });
+
   it("conta votos por candidato e grava o vencedor (argmax) onchain sem digitar nome", async () => {
     const { gov, target } = await deployDAO();
-    expect(await gov.numCandidates()).to.equal(26);
-    expect(await target.numCandidatos()).to.equal(26);
-
     const { pid, args } = await abrirProposta(gov, target);
-    expect(pid).to.equal(await gov.hashProposal(...args)); // proposalId reconstrutível
 
-    await mine(2);
+    await mine(2); // avança além do votingDelay (1 bloco)
     expect(await gov.state(pid)).to.equal(ACTIVE);
 
     const [, v1, v2, v3] = await ethers.getSigners();
-    await gov.castVote(pid, 17);          // facilitador (940) -> Endrick
-    await gov.connect(v1).castVote(pid, 25); // 30 -> Vini
-    await gov.connect(v2).castVote(pid, 25); // 20 -> Vini
-    await gov.connect(v3).castVote(pid, 17); // 10 -> Endrick
+    // Facilitador (100 wDAO, via constructor) → Endrick (idx 17)
+    await gov.castVote(pid, 17);
+    // v1 (100) e v2 (100) → Vini Jr. (idx 26)
+    await gov.connect(v1).castVote(pid, 26);
+    await gov.connect(v2).castVote(pid, 26);
+    // v3 (100) → Endrick (idx 17)
+    await gov.connect(v3).castVote(pid, 17);
 
+    // Endrick: 100 + 100 = 200  |  Vini: 100 + 100 = 200 — empate: vence menor idx (17)
     const [wIdx] = await gov.winningCandidate(pid);
-    expect(wIdx).to.equal(17);
+    expect(wIdx).to.equal(17); // Endrick
 
-    await mine(121);
+    // Avança além do votingPeriod (120 blocos) + 1
+    await mine(122);
     expect(await gov.state(pid)).to.equal(SUCCEEDED);
 
     await gov.queue(...args);
     await gov.execute(...args);
 
     expect(await gov.state(pid)).to.equal(EXECUTED);
-    expect(await target.vencedor()).to.equal(NOMES_ONCHAIN[17]); // "Endrick (Lyon)"
+    // NOMES_ONCHAIN[17] === "Endrick (Lyon)"
+    expect(await target.vencedor()).to.equal(NOMES_ONCHAIN[17]);
     expect(await target.vencedorIndice()).to.equal(17);
   });
 
-  it("rejeita support fora da cédula e voto duplicado", async () => {
-    const { gov, target, v1 } = await deployDAO();
+  it("rejeita support fora da cédula (idx >= numCandidates)", async () => {
+    const { gov, target } = await deployDAO();
     const { pid } = await abrirProposta(gov, target);
     await mine(2);
 
-    await expect(gov.connect(v1).castVote(pid, 26))
+    const [, v1] = await ethers.getSigners();
+    // 27 é o primeiro índice inválido (candidatos válidos: 0-26)
+    await expect(gov.connect(v1).castVote(pid, 27))
       .to.be.revertedWithCustomError(gov, "GovernorInvalidVoteType");
-    await gov.connect(v1).castVote(pid, 3);
-    await expect(gov.connect(v1).castVote(pid, 4))
+  });
+
+  it("rejeita voto duplo do mesmo endereço", async () => {
+    const { gov, target } = await deployDAO();
+    const { pid } = await abrirProposta(gov, target);
+    await mine(2);
+
+    const [, v1] = await ethers.getSigners();
+    await gov.connect(v1).castVote(pid, 3);  // primeiro voto: válido
+    await expect(gov.connect(v1).castVote(pid, 4))  // segundo voto: reverte
       .to.be.revertedWithCustomError(gov, "GovernorAlreadyCastVote");
+  });
+
+  it("VotingTarget rejeita chamada fora do Timelock", async () => {
+    const { gov, target } = await deployDAO();
+    const descHash = ethers.id(DESCRICAO);
+    const [fac] = await ethers.getSigners();
+    await expect(target.connect(fac).gravarVencedor(descHash))
+      .to.be.revertedWithCustomError(target, "ApenasTimelock");
   });
 });

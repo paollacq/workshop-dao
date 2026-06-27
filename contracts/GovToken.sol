@@ -8,39 +8,75 @@ import "@openzeppelin/contracts/utils/Nonces.sol";
 
 /**
  * @title GovToken — Workshop DAO
- * @notice Token de governança com suporte a snapshots de voting power.
+ * @notice Token de governança com claim automático.
  *
- * CONCEITO-CHAVE 
- * ERC20Votes grava um "checkpoint" a cada transferência:
- * salva (número do bloco, saldo) para cada endereço.
- * O Governor consulta sempre o checkpoint do bloco ANTERIOR
- * à criação de uma proposta, isso impede que alguém compre
- * tokens depois que a proposta foi criada para influenciar o resultado.
+ * NOVO MECANISMO (v2 — POC sem distribuir.js)
+ * ──────────────────────────────────────────────────────────────────────────
+ * Qualquer carteira chama claimAndDelegate() UMA única vez.
+ * O contrato:
+ *   1. Verifica que o endereço ainda não fez claim.
+ *   2. Minta CLAIM_AMOUNT tokens diretamente para msg.sender.
+ *   3. Delega automaticamente para msg.sender (ativa o voting power).
+ * Tudo em uma única transação — o participante não precisa de ETH além do gas.
  *
- * ATENÇÃO: o holder precisa chamar delegate() (mesmo para si mesmo)
- * antes de poder votar. Tokens não delegados não contam como voting power.
+ * O facilitador deve chamar propose() DEPOIS de um período de claim
+ * (votingDelay = 50 blocos ≈ 10 min dá margem suficiente para a plateia claimar).
+ *
+ * CONCEITO-CHAVE: ERC20Votes
+ * O Governor consulta o checkpoint do bloco do snapshot para calcular
+ * o voting power. Quem chamar claimAndDelegate() ANTES do snapshot
+ * vota com peso 100 wDAO. Quem chamar DEPOIS tem weight = 0.
+ *
+ * SEGURANÇA (suficiente para POC)
+ *   - Uma claim por endereço (hasClaimed mapping).
+ *   - Não impede Sybil (múltiplas carteiras), aceitável para workshop.
  */
 contract GovToken is ERC20, ERC20Permit, ERC20Votes {
-    // Deploy
+
+    /// @notice Quantidade de tokens mintada por claim (100 wDAO).
+    uint256 public constant CLAIM_AMOUNT = 100 * 10 ** 18;
+
+    /// @notice Registra quais endereços já fizeram claim.
+    mapping(address => bool) public hasClaimed;
+
+    /// @notice Emitido quando um participante faz claim.
+    event Claimed(address indexed participant, uint256 amount);
+
+    error JaFezClaim(address participant);
+
     /**
-     * @param initialHolder Carteira que recebe todo o supply inicial.
-     *        No workshop, esta será a carteira do facilitador,
-     *        que depois distribui tokens para os participantes.
+     * @param facilitador Carteira do facilitador — recebe 100 wDAO iniciais
+     *                    e já é auto-delegada para poder criar a proposta.
      */
-    constructor(address initialHolder)
+    constructor(address facilitador)
         ERC20("Workshop DAO Token", "wDAO")
         ERC20Permit("Workshop DAO Token")
     {
-        // Supply fixo: 1 000 wDAO (18 casas decimais)
-        _mint(initialHolder, 1_000 * 10 ** decimals());
+        // Facilitador recebe tokens e delega para si mesmo no deploy.
+        // Isso garante que ele tenha VP no snapshot quando criar a proposta.
+        _mint(facilitador, CLAIM_AMOUNT);
+        hasClaimed[facilitador] = true;
+        _delegate(facilitador, facilitador);
     }
 
-    // Override obrigatório (OZ v5)
     /**
-     * @dev ERC20Votes precisa interceptar toda movimentação de tokens
-     *      para atualizar o checkpoint. Em OZ v5 isso é feito em _update
-     *      (em vez do antigo _afterTokenTransfer).
+     * @notice Minta 100 wDAO e delega para si mesmo em uma única transação.
+     *         Só pode ser chamado uma vez por endereço.
+     *
+     * Chame ANTES do propose() para que o VP exista no snapshot.
      */
+    function claimAndDelegate() external {
+        if (hasClaimed[msg.sender]) revert JaFezClaim(msg.sender);
+
+        hasClaimed[msg.sender] = true;
+        _mint(msg.sender, CLAIM_AMOUNT);
+        _delegate(msg.sender, msg.sender);
+
+        emit Claimed(msg.sender, CLAIM_AMOUNT);
+    }
+
+    // ── Overrides obrigatórios (OZ v5) ──────────────────────────────────────
+
     function nonces(address owner)
         public
         view
@@ -49,17 +85,11 @@ contract GovToken is ERC20, ERC20Permit, ERC20Votes {
     {
         return super.nonces(owner);
     }
-    
-    // toda movimentação de tokens dispara _update
+
     function _update(address from, address to, uint256 value)
         internal
         override(ERC20, ERC20Votes)
     {
-        // grava o checkpoint ANTES de mover
         super._update(from, to, value);
-        /**
-         * Governor sempre consulta o saldo no bloco anterior à proposta ser criada,
-         * não o saldo atual. Isso impede ataques de última hora.
-         */
     }
 }
