@@ -16,6 +16,11 @@ pragma solidity ^0.8.24;
  *   2. ao ser executado, reconstroi o proposalId e pergunta ao Governor quem venceu
  *      (winningCandidate -> argmax dos votos);
  *   3. grava onchain o nome correspondente aquele indice.
+ *
+ * CORREÇÃO v2:
+ *   - Adicionado require(_candidatos.length == numCandidates) no constructor para
+ *     garantir que Governor e VotingTarget sempre concordem sobre o numero de candidatos.
+ *   - Adicionado guard em gravarVencedor para evitar out-of-bounds em candidatos[idx].
  */
 
 interface IWorkshopGovernor {
@@ -30,6 +35,8 @@ interface IWorkshopGovernor {
         external
         view
         returns (uint8 winner, uint256 votes);
+
+    function numCandidates() external view returns (uint8);
 }
 
 contract VotingTarget {
@@ -49,14 +56,25 @@ contract VotingTarget {
     event VencedorDeclarado(string nome, uint8 indice, uint256 votos, uint256 bloco);
 
     error ApenasTimelock();
+    error IndiceForaDaCedula(uint8 indice, uint256 numCandidatos);
 
     /**
      * @param _timelock   Endereço do TimelockController (único autorizado a executar)
      * @param _governor   Endereço do WorkshopGovernor (consultado para saber o vencedor)
-     * @param _candidatos Nomes dos candidatos, na MESMA ordem do frontend e da cédula do Governor
+     * @param _candidatos Nomes dos candidatos, na MESMA ordem do frontend e da cédula do Governor.
+     *                    O tamanho DEVE ser igual ao numCandidates do Governor.
      */
     constructor(address _timelock, address _governor, string[] memory _candidatos) {
         require(_candidatos.length >= 2, "min 2 candidatos");
+
+        // CORREÇÃO: garantir consistência entre Governor e VotingTarget no deploy.
+        // Se os tamanhos divergirem, gravarVencedor poderia fazer acesso out-of-bounds.
+        uint8 numGov = IWorkshopGovernor(_governor).numCandidates();
+        require(
+            _candidatos.length == numGov,
+            "VotingTarget: candidatos.length deve ser igual a numCandidates do Governor"
+        );
+
         timelock   = _timelock;
         governor   = IWorkshopGovernor(_governor);
         candidatos = _candidatos;
@@ -94,6 +112,10 @@ contract VotingTarget {
         uint256 proposalId = governor.hashProposal(targets, values, calldatas, descriptionHash);
 
         (uint8 idx, uint256 votos) = governor.winningCandidate(proposalId);
+
+        // CORREÇÃO: guard explícito — impossível se o constructor já garante consistência,
+        // mas mantido como defesa em profundidade caso o contrato seja reutilizado.
+        if (idx >= candidatos.length) revert IndiceForaDaCedula(idx, candidatos.length);
 
         vencedor       = candidatos[idx];
         vencedorIndice = idx;

@@ -6,6 +6,38 @@
 <title>Workshop DAO — Governança ao Vivo</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<!-- WalletConnect AppKit — permite conectar carteiras mobile via QR/deeplink -->
+<script type="module">
+  import { createAppKit } from 'https://esm.sh/@reown/appkit@1.6.8';
+  import { EthersAdapter } from 'https://esm.sh/@reown/appkit-adapter-ethers@1.6.8';
+  import { sepolia } from 'https://esm.sh/@reown/appkit/networks';
+
+  const ethersAdapter = new EthersAdapter();
+
+  window._appkit = createAppKit({
+    adapters: [ethersAdapter],
+    networks: [sepolia],
+    // Project ID gratuito — substitua pelo seu em cloud.reown.com para produção
+    projectId: 'b56e18d47c72ab683b10814fe9495694',
+    metadata: {
+      name: 'Workshop DAO',
+      description: 'Eleição onchain — Seleção Brasileira Copa 2026',
+      url: location.origin,
+      icons: ['https://avatars.githubusercontent.com/u/37784886'],
+    },
+    features: { analytics: false, email: false, socials: false },
+  });
+GOVTOKEN_ADDRESS = 0xFE3F8F0B3Ca999768A3Fc5d6AD6e8aaCc85d1aF5
+TIMELOCK_ADDRESS = 0x3ca640c2cd9851e9fB7dbAAdC10fC206dE9a86A9
+GOVERNOR_ADDRESS = 0xb90fF857dC0B9f2e33487C05ea95d70E1e9cBc79
+TARGET_ADDRESS   = 0x311B88185bAd789708D249545545541c4d292Ea3
+  // Expõe evento de conexão para o código legado
+  window._appkit.subscribeAccount(async (account) => {
+    if (account?.address && window._onWalletConnected) {
+      window._onWalletConnected(account.address);
+    }
+  });
+</script>
 <script>
 /*
   COMO USAR ESTE ARQUIVO:
@@ -21,15 +53,15 @@
 */
 
 /* ↓↓↓ FACILITADOR: cole aqui após o deploy ↓↓↓ */
-const PRESET_TOKEN    = "0xaDF489915C282A71e0aF66bAF129A06894333c0e";   // Endereço do GovToken
-const PRESET_GOVERNOR = "0x0bc516C2a05261b794D168bd6713Ea54Ce85211E";   // Endereço do WorkshopGovernor
-const PRESET_PROPOSAL = "89619872190003916531315957288608252952880924620989733536938122025355870608349";   // proposalId (número grande)
-const PRESET_TARGET   = "";   // (opcional) Endereço do VotingTarget — mostra o vencedor gravado onchain
+const PRESET_TOKEN    = "0x5eFC97dfCd6A398D16B2163880e341fA777951cd";   // Endereço do GovToken
+const PRESET_GOVERNOR = "0x4860A8e939b1732026E0aB255b2D7748A714D631";   // Endereço do WorkshopGovernor
+const PRESET_PROPOSAL = "18148347419207298033993075065852128965952244886349858684852553473498547054991";   // proposalId (número grande)
+const PRESET_TARGET   = "0xD5b82B028E5912f4a5298d679AAB3187b434E592";   // (opcional) Endereço do VotingTarget — mostra o vencedor gravado onchain
 /* ↑↑↑ Esses valores são sobrescritos por ?token=&gov=&pid=&target= na URL ↑↑↑ */
 
 /*
   CÉDULA — o índice (idx) É o `support` enviado em castVote(proposalId, idx).
-  Esta ordem precisa ser IDÊNTICA à de scripts/candidatos.js e à dos nomes
+  Esta ordem precisa ser IDÊNTICA à de scripts/can didatos.js e à dos nomes
   passados ao VotingTarget no deploy. Índice trocado = voto no jogador errado.
 */
 const CANDIDATOS = [
@@ -62,7 +94,8 @@ const CANDIDATOS = [
   { idx: 22, nome: "Neymar",             clube: "Santos",            pos: "ATA" },
   { idx: 23, nome: "Raphinha",           clube: "Barcelona",         pos: "ATA" },
   { idx: 24, nome: "Rayan",              clube: "Bournemouth",       pos: "ATA" },
-  { idx: 25, nome: "Vini Jr.",           clube: "Real Madrid",       pos: "ATA" },
+  { idx: 25, nome: "Rodrygo",           clube: "Real Madrid",       pos: "ATA" },  // ← adicionado
+  { idx: 26, nome: "Vini Jr.",          clube: "Real Madrid",       pos: "ATA" },
 ];
 
 // Cor por posição (usada em barras, badges e destaque do líder)
@@ -82,6 +115,7 @@ const GOV_ABI = [
   "function proposalDeadline(uint256) view returns (uint256)",
   "function hasVoted(uint256,address) view returns (bool)",
   "function castVote(uint256,uint8) returns (uint256)",
+  "function getVotes(address,uint256) view returns (uint256)",
   "event VoteCast(address indexed voter, uint256 proposalId, uint8 support, uint256 weight, string reason)",
 ];
 // VotingTarget (opcional): lê o vencedor já gravado onchain para o banner final
@@ -97,6 +131,9 @@ const TOKEN_ABI = [
   "function delegates(address) view returns (address)",
   "function getVotes(address) view returns (uint256)",
   "function decimals() view returns (uint8)",
+  "function claimAndDelegate() returns ()",
+  "function hasClaimed(address) view returns (bool)",
+  "function CLAIM_AMOUNT() view returns (uint256)",
 ];
 const STATE_PT = ["Aguardando","Aberta","Cancelada","Reprovada","Aprovada","Na Fila","Expirada","Executada"];
 const SEPOLIA_RPC = "https://ethereum-sepolia-rpc.publicnode.com";
@@ -516,7 +553,7 @@ a:hover{text-decoration:underline}
         <div class="wb-sub" id="p-winner-sub"></div>
       </div>
       <div class="sec-eye">Eleição ao vivo</div>
-      <div class="sec-title">⚽ Melhor Jogador da Seleção · <span id="p-cand-count">26</span> candidatos</div>
+      <div class="sec-title">⚽ Melhor Jogador da Seleção · <span id="p-cand-count">27</span> candidatos</div>
       <div class="rank-list" id="p-cands"></div>
       <div class="feed-card">
         <div class="feed-title"><span class="pulse" style="color:var(--green)"></span>Feed de votos onchain</div>
@@ -595,39 +632,53 @@ a:hover{text-decoration:underline}
       <div class="sdot" id="sd2">2</div>
       <div class="sline" id="sl2"></div>
       <div class="sdot" id="sd3">3</div>
+      <div class="sline" id="sl3"></div>
+      <div class="sdot" id="sd4">4</div>
     </div>
 
     <!-- Passo 1: Conectar -->
     <div class="step-panel on" id="sp1">
-      <div class="step-h">Conectar MetaMask</div>
+      <div class="step-h">Conectar carteira</div>
       <div class="step-d">Conecte sua carteira para participar da votação onchain.</div>
       <div class="concept">
-        <strong>Por que a MetaMask?</strong> Cada voto é uma transação assinada pela sua carteira. Sem assinatura, não há voto — é isso que garante que cada endereço vote só uma vez e que tudo fique registrado na blockchain.
+        <strong>Por que assinar?</strong> Cada voto é uma transação assinada pela sua carteira. Sem assinatura, não há voto — é isso que garante que cada endereço vote só uma vez e que tudo fique registrado na blockchain.
       </div>
-      <button class="btn-act blue" id="v-conn-btn" onclick="voterConnect()">🦊 Conectar MetaMask</button>
+
+      <!-- Botão MetaMask (desktop / browser da MetaMask no celular) -->
+      <button class="btn-act blue" id="v-conn-btn" onclick="voterConnect()" style="margin-bottom:10px">
+        🦊 MetaMask (extensão / desktop)
+      </button>
+
+      <!-- Botão WalletConnect (qualquer carteira mobile) -->
+      <button class="btn-act out" id="v-wc-btn" onclick="voterConnectWC()" style="margin-bottom:10px">
+        📱 Carteira Mobile (WalletConnect)
+      </button>
+
       <div class="err-msg" id="v-conn-err" style="display:none"></div>
-      <div style="margin-top:18px;background:var(--surface);border-radius:10px;padding:13px;font-size:12px;color:var(--muted)">
-        <strong style="color:var(--text)">Sem MetaMask?</strong><br>
-        Instale em <a href="https://metamask.io" target="_blank">metamask.io</a> e configure a rede <strong>Sepolia</strong>.
-        ETH de teste: <a href="https://sepoliafaucet.com" target="_blank">sepoliafaucet.com</a>
+
+      <div style="margin-top:14px;background:var(--surface);border-radius:10px;padding:13px;font-size:12px;color:var(--muted)">
+        <strong style="color:var(--text)">No celular?</strong><br>
+        Use <strong>📱 Carteira Mobile</strong> — abre um QR code que você escaneia com MetaMask, Rainbow, Trust Wallet ou qualquer carteira WalletConnect.<br><br>
+        <strong style="color:var(--text)">Alternativa gratuita:</strong> abra este link pelo <strong>browser interno da MetaMask</strong> (menu → Browser).
       </div>
     </div>
 
-    <!-- Passo 2: Delegar -->
+    <!-- Passo 2: Receber tokens e delegar -->
     <div class="step-panel" id="sp2">
-      <div class="step-h">Delegar voting power</div>
-      <div class="step-d">Ative seus tokens de governança para poder votar.</div>
+      <div class="step-h">Receber tokens e ativar voto</div>
+      <div class="step-d">Um clique minta seus 100 wDAO e ativa seu poder de voto.</div>
       <div class="concept">
-        <strong>O que é delegação?</strong> No padrão <strong>ERC20Votes</strong>, ter tokens não significa ter poder de voto — você precisa chamar <code style="background:var(--bg);padding:1px 5px;border-radius:4px">delegate()</code>, mesmo para você mesmo. Isso grava um <em>checkpoint</em> onchain com seu saldo no bloco atual.
+        <strong>Como funciona?</strong> O contrato <strong>GovToken</strong> chama <code style="background:var(--bg);padding:1px 5px;border-radius:4px">claimAndDelegate()</code> — minta 100 wDAO e delega para você mesmo em uma única transação. Só pode ser feito uma vez por carteira.
       </div>
       <div class="wallet-row"><div class="conn"></div><span id="v-addr">0x...</span></div>
       <div class="bal-chips">
         <div class="bal-chip"><div class="bval" id="v-bal">—</div><div class="blbl">wDAO no saldo</div></div>
         <div class="bal-chip"><div class="bval" id="v-vp" style="color:var(--amber)">—</div><div class="blbl">Voting power</div></div>
       </div>
-      <div class="info-box ok" id="v-already-del">✅ Voting power já delegado! Pode prosseguir.</div>
-      <button class="btn-act blue" id="v-del-btn" onclick="voterDelegate()">⚡ Delegar para mim mesmo</button>
-      <button class="btn-act out" id="v-skip-del" onclick="goStep(3)" style="display:none">Já delegado — ir para votação →</button>
+      <div class="info-box ok" id="v-already-del">✅ Tokens recebidos e voto ativo! Pode prosseguir.</div>
+      <div class="info-box warn" id="v-snapshot-warn">⚠️ Você ativou o voto <strong>depois</strong> do snapshot desta proposta. Seu voting power nesta eleição é <strong>zero</strong> — seu voto será aceito mas não contará no placar.</div>
+      <button class="btn-act blue" id="v-del-btn" onclick="voterDelegate()">🪙 Receber 100 wDAO e ativar voto</button>
+      <button class="btn-act out" id="v-skip-del" onclick="goStep(3)" style="display:none">Voto já ativo — ir para votação →</button>
       <div class="err-msg" id="v-del-err" style="display:none"></div>
     </div>
 
@@ -667,7 +718,7 @@ a:hover{text-decoration:underline}
         </a>
         <div class="explain-box">
           <strong style="font-size:13px">O que aconteceu?</strong>
-          <p>Você chamou <code style="background:var(--bg);padding:1px 5px;border-radius:4px">castVote()</code> no <strong>WorkshopGovernor</strong>. O contrato verificou seu voting power no bloco do snapshot, registrou seu voto e emitiu o evento <code style="background:var(--bg);padding:1px 5px;border-radius:4px">VoteCast</code> na blockchain.</p>
+          <p>Você chamou <code style="background:var(--bg);padding:1px 5px;border-radius:4px">castVote(proposalId, idx)</code> no <strong>WorkshopGovernor</strong>. O contrato verificou seu voting power no bloco do snapshot, registrou seu voto no candidato de índice <code style="background:var(--bg);padding:1px 5px;border-radius:4px">idx</code> e emitiu o evento <code style="background:var(--bg);padding:1px 5px;border-radius:4px">VoteCast</code> na blockchain.</p>
         </div>
       </div>
     </div>
@@ -992,7 +1043,7 @@ function goStep(n) {
     else if(i===n){ d.classList.add("active"); d.textContent=String(i); }
     else{ d.textContent=String(i); }
   }
-  for(let i=1;i<=2;i++){
+  for(let i=1;i<=3;i++){
     const l=document.getElementById(`sl${i}`);
     if(l) l.classList.toggle("done", i<n);
   }
@@ -1000,58 +1051,124 @@ function goStep(n) {
   if(n===3 && walletAddress) loadVoterVoteState();
 }
 
+// ── Conexão compartilhada — chamada tanto pelo MetaMask quanto pelo WalletConnect ──
+async function _setupSigner(provider) {
+  signer = await provider.getSigner();
+  walletAddress = await signer.getAddress();
+
+  // Garantir Sepolia
+  const network = await provider.getNetwork();
+  if (network.chainId !== 11155111n) {
+    try {
+      await provider.send("wallet_switchEthereumChain", [{ chainId: "0xaa36a7" }]);
+    } catch {
+      showErr("v-conn-err", "Troque para a rede Sepolia na carteira e tente novamente.");
+      return false;
+    }
+  }
+
+  govContractWrite   = new ethers.Contract(CFG.governor, GOV_ABI,   signer);
+  tokenContractWrite = new ethers.Contract(CFG.token,    TOKEN_ABI, signer);
+  document.getElementById("v-addr").textContent = walletAddress.slice(0,6)+"…"+walletAddress.slice(-4);
+  await loadVoterBals();
+  goStep(2);
+  return true;
+}
+
+// ── MetaMask / extensão de browser ───────────────────────────────────────
 async function voterConnect() {
-  if(!window.ethereum){ showErr("v-conn-err","MetaMask não encontrada. Instale em metamask.io"); return; }
-  const btn=document.getElementById("v-conn-btn");
-  btn.disabled=true; btn.innerHTML='<span class="spinner"></span>Conectando...';
+  if (!window.ethereum) {
+    showErr("v-conn-err", "MetaMask não encontrada. Use o botão 📱 Carteira Mobile ou abra este link pelo browser interno da MetaMask.");
+    return;
+  }
+  const btn = document.getElementById("v-conn-btn");
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Conectando...';
   try {
-    await window.ethereum.request({method:"eth_requestAccounts"});
-    const cid = await window.ethereum.request({method:"eth_chainId"});
-    if(cid!=="0xaa36a7"){
-      try { await window.ethereum.request({method:"wallet_switchEthereumChain",params:[{chainId:"0xaa36a7"}]}); }
-      catch { showErr("v-conn-err","Troque para a rede Sepolia na MetaMask."); btn.disabled=false; btn.textContent="🦊 Conectar MetaMask"; return; }
+    await window.ethereum.request({ method: "eth_requestAccounts" });
+    const cid = await window.ethereum.request({ method: "eth_chainId" });
+    if (cid !== "0xaa36a7") {
+      try { await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: "0xaa36a7" }] }); }
+      catch { showErr("v-conn-err", "Troque para a rede Sepolia na MetaMask."); btn.disabled=false; btn.textContent="🦊 MetaMask (extensão / desktop)"; return; }
     }
     const prov = new ethers.BrowserProvider(window.ethereum);
-    signer = await prov.getSigner();
-    walletAddress = await signer.getAddress();
-    govContractWrite   = new ethers.Contract(CFG.governor, GOV_ABI,   signer);
-    tokenContractWrite = new ethers.Contract(CFG.token,    TOKEN_ABI, signer);
-    document.getElementById("v-addr").textContent = walletAddress.slice(0,6)+"…"+walletAddress.slice(-4);
-    await loadVoterBals();
-    goStep(2);
+    await _setupSigner(prov);
   } catch(e) {
-    showErr("v-conn-err", e.message||String(e));
-    btn.disabled=false; btn.textContent="🦊 Conectar MetaMask";
+    showErr("v-conn-err", e.message || String(e));
+    btn.disabled=false; btn.textContent="🦊 MetaMask (extensão / desktop)";
+  }
+}
+
+// ── WalletConnect / carteiras mobile ─────────────────────────────────────
+async function voterConnectWC() {
+  const btn = document.getElementById("v-wc-btn");
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Abrindo carteira...';
+  try {
+    if (!window._appkit) throw new Error("WalletConnect não carregou. Tente recarregar a página.");
+
+    // Abre o modal do AppKit (QR code ou deeplink para o celular)
+    await window._appkit.open();
+
+    // A conexão é assíncrona — o _appkit.subscribeAccount dispara _onWalletConnected
+    window._onWalletConnected = async (address) => {
+      try {
+        const walletProvider = window._appkit.getWalletProvider();
+        const prov = new ethers.BrowserProvider(walletProvider);
+        await _setupSigner(prov);
+      } catch(e) {
+        showErr("v-conn-err", e.message || String(e));
+      }
+    };
+  } catch(e) {
+    showErr("v-conn-err", e.message || String(e));
+  } finally {
+    btn.disabled = false; btn.textContent = "📱 Carteira Mobile (WalletConnect)";
   }
 }
 
 async function loadVoterBals() {
-  const [bal,vp] = await Promise.all([
+  // Lê o snapshot para verificar o VP real nesta proposta.
+  const snap = await govContractRead.proposalSnapshot(proposalId);
+  const [bal, claimed, vpAtual, vpSnapshot] = await Promise.all([
     tokenContractRead.balanceOf(walletAddress),
-    tokenContractRead.getVotes(walletAddress),
+    tokenContractRead.hasClaimed(walletAddress),           // já fez claimAndDelegate?
+    tokenContractRead.getVotes(walletAddress),             // VP no bloco atual
+    govContractRead.getVotes(walletAddress, snap),         // VP real no snapshot
   ]);
-  const f = v => parseFloat(ethers.formatUnits(v,tokenDecimals)).toFixed(2);
+  const f = v => parseFloat(ethers.formatUnits(v, tokenDecimals)).toFixed(2);
   document.getElementById("v-bal").textContent = f(bal);
-  document.getElementById("v-vp").textContent  = f(vp);
-  const del = vp > 0n;
-  el("v-already-del").classList.toggle("show", del);
-  el("v-del-btn").style.display  = del?"none":"block";
-  el("v-skip-del").style.display = del?"block":"none";
+  document.getElementById("v-vp").textContent  = f(vpSnapshot); // mostra o que conta no voto
+
+  // Já fez claim = já tem tokens e voto ativo
+  el("v-already-del").classList.toggle("show", claimed);
+  el("v-del-btn").style.display  = claimed ? "none"  : "block";
+  el("v-skip-del").style.display = claimed ? "block" : "none";
+
+  // Fez claim mas perdeu o snapshot (votou depois do propose)
+  const warnEl = document.getElementById("v-snapshot-warn");
+  if (warnEl) warnEl.classList.toggle("show", claimed && vpSnapshot === 0n);
 }
 
 async function voterDelegate() {
-  const btn=el("v-del-btn");
-  btn.disabled=true; btn.innerHTML='<span class="spinner"></span>Assinando...';
+  // Este botão agora chama claimAndDelegate() — minta 100 wDAO e delega em 1 tx.
+  const btn = el("v-del-btn");
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Recebendo tokens...';
   try {
-    const tx = await tokenContractWrite.delegate(walletAddress);
-    btn.innerHTML='<span class="spinner"></span>Confirmando...';
+    const tx = await tokenContractWrite.claimAndDelegate();
+    btn.innerHTML = '<span class="spinner"></span>Confirmando...';
     await tx.wait();
     await loadVoterBals();
     goStep(3);
     await loadVoterVoteState();
   } catch(e) {
-    showErr("v-del-err", e.reason||e.message||String(e));
-    btn.disabled=false; btn.textContent="⚡ Delegar para mim mesmo";
+    // JaFezClaim: contrato reverteu porque já claimou
+    const jaFez = e.reason?.includes("JaFezClaim") || e.message?.includes("JaFezClaim");
+    if (jaFez) {
+      await loadVoterBals();
+      goStep(3);
+    } else {
+      showErr("v-del-err", e.reason || e.message || String(e));
+      btn.disabled = false; btn.textContent = "🪙 Receber 100 wDAO e ativar voto";
+    }
   }
 }
 
@@ -1134,6 +1251,15 @@ async function loadVoterVoteState() {
     });
     const voteBtn = el("v-vote-btn");
     voteBtn.disabled = hasVoted||!isActive;
+    const snap = await govContractRead.proposalSnapshot(proposalId);
+    const vpSnapshot = await govContractRead.getVotes(walletAddress, snap);
+    const hasNoVP = vpSnapshot === 0n;
+
+    voteBtn.disabled = hasVoted || !isActive || hasNoVP;
+
+    if (hasNoVP && !hasVoted) {
+      voteBtn.textContent = "VP zero nesta proposta — claim foi após o snapshot";
+    }
     if(hasVoted) voteBtn.textContent="Você já votou ✓";
     else if(!isActive) voteBtn.textContent="Votação fechada";
     else voteBtn.textContent="Confirmar voto onchain";
