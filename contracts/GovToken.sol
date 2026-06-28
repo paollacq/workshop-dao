@@ -61,8 +61,8 @@ contract GovToken is ERC20, ERC20Permit, ERC20Votes {
         if (hasClaimed[msg.sender]) revert JaFezClaim(msg.sender);
 
         hasClaimed[msg.sender] = true;
-        _mint(msg.sender, CLAIM_AMOUNT);
-        _delegate(msg.sender, msg.sender);
+        _mint(msg.sender, CLAIM_AMOUNT);  // 100 wDAO
+        _delegate(msg.sender, msg.sender);   // ativa o voting power
 
         emit Claimed(msg.sender, CLAIM_AMOUNT);
     }
