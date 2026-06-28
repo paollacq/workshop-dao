@@ -8,8 +8,7 @@
     "deploy:sepolia": "npx hardhat run scripts/deploy.js --network sepolia",
     "propose":        "npx hardhat run scripts/propose.js --network sepolia",
     "vote":           "npx hardhat run scripts/vote.js --network sepolia",
-    "execute":        "npx hardhat run scripts/execute.js --network sepolia",
-    "distribuir":     "npx hardhat run scripts/distribuir.js --network sepolia"
+    "execute":        "npx hardhat run scripts/execute.js --network sepolia"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",

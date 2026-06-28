@@ -21,36 +21,14 @@ import "./GovernorCountingMulti.sol";
  *   GovernorVotesQuorum.. define quórum mínimo
  *   GovernorTimelockCtrl  integra com o Timelock
  *
- * PARÂMETROS PARA O WORKSHOP:
- *   votingDelay  : 1 bloco — proposta abre imediatamente após o propose()
- *   votingPeriod : 120 blocos (≈ 24 min) — janela de votação
- *   quórum       : 4% do supply no momento do voto (ver _getVotes abaixo)
- *
- * ── ATENÇÃO: DESVIO INTENCIONAL DO PADRÃO ──────────────────────────────────
+ * ATENÇÃO: este Governor NÃO é compatível com o padrão OpenZeppelin. 
  *
  * O Governor padrão do OpenZeppelin lê o voting power de cada votante no
  * bloco do SNAPSHOT (proposalSnapshot), não no bloco atual. Isso previne
  * ataques de flash loan em DAOs com tokens de valor real: ninguém pode
  * comprar tokens, votar e devolvê-los no mesmo bloco.
  *
- * Para o workshop, esse mecanismo causa um problema prático: o snapshot
- * ocorre apenas 1 bloco após o propose(). Os participantes ainda não
- * tiveram tempo de chamar claimAndDelegate(), então seu VP no snapshot é
- * zero. O voto é aceito onchain mas contabilizado com weight = 0 — invisível
- * no placar, sem nenhum erro ou revert.
- *
- * SOLUÇÃO: sobrescrever _getVotes() para ler o VP ATUAL (bloco do voto),
- * ignorando o parâmetro timepoint. Qualquer participante que tenha feito
- * claimAndDelegate() ANTES de votar — não importa quando — vota com peso
- * real de 100 wDAO.
- *
- * Esta mudança é SEGURA para o workshop porque:
- *   - wDAO não tem valor real e não é negociável em mercado
- *   - O objetivo pedagógico é que todos votem com peso visível
- *   - Não há incentivo econômico para ataques de flash loan
- *
  * NÃO use este padrão em produção com tokens de valor real.
- * ───────────────────────────────────────────────────────────────────────────
  */
 contract WorkshopGovernor is
     Governor,
@@ -64,7 +42,7 @@ contract WorkshopGovernor is
      * @param _token         Endereço do GovToken (ERC20Votes)
      * @param _timelock      Endereço do TimelockController
      * @param _numCandidates Quantidade de candidatos da cédula
-     *                       (deve ser idêntica ao VotingTarget e ao frontend)
+     *                       
      */
     constructor(IVotes _token, TimelockController _timelock, uint8 _numCandidates)
         Governor("WorkshopGovernor")
@@ -79,21 +57,6 @@ contract WorkshopGovernor is
         GovernorTimelockControl(_timelock)
     {}
 
-    // ── Override central: VP lido no bloco atual, não no snapshot ────────────
-    /**
-     * @dev Sobrescreve GovernorVotes._getVotes().
-     *
-     *      O parâmetro `timepoint` (bloco do snapshot) é IGNORADO propositalmente.
-     *      Em vez disso, lemos token().getVotes(account) — o VP delegado agora.
-     *
-     *      Fluxo resultante para o participante:
-     *        1. Abre o frontend após o propose()
-     *        2. Clica "Receber tokens" → claimAndDelegate() → 100 wDAO + VP ativo
-     *        3. Vota → _getVotes retorna 100 wDAO → aparece no placar
-     *
-     *      Sem este override, o passo 3 retornaria 0 porque claimAndDelegate()
-     *      aconteceu depois do snapshot.
-     */
     function _getVotes(
         address account,
         uint256, /* timepoint — ignorado intencionalmente no workshop */
@@ -101,8 +64,6 @@ contract WorkshopGovernor is
     ) internal view override(Governor, GovernorVotes) returns (uint256) {
         return token().getVotes(account);
     }
-
-    // ── Overrides de resolução de herança múltipla (exigidos pelo Solidity) ──
 
     function votingDelay()
         public view override(Governor, GovernorSettings)

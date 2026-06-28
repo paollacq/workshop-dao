@@ -17,10 +17,6 @@ pragma solidity ^0.8.24;
  *      (winningCandidate -> argmax dos votos);
  *   3. grava onchain o nome correspondente aquele indice.
  *
- * CORREÇÃO v2:
- *   - Adicionado require(_candidatos.length == numCandidates) no constructor para
- *     garantir que Governor e VotingTarget sempre concordem sobre o numero de candidatos.
- *   - Adicionado guard em gravarVencedor para evitar out-of-bounds em candidatos[idx].
  */
 
 interface IWorkshopGovernor {
@@ -90,14 +86,9 @@ contract VotingTarget {
     }
 
     /**
-     * @notice Grava o vencedor lido diretamente do Governor (trustless).
-     *         A proposta chama esta funcao; o nome NAO vem por parametro.
+     * @notice Grava o vencedor lido diretamente do Governor (trustless). A proposta chama esta funcao; o nome NAO vem por parametro.
      * @param descriptionHash keccak256 da descricao usada no propose()/queue()/execute().
      *
-     * Como o proposalId e reconstruido:
-     *   proposalId = hashProposal([this], [0], [gravarVencedor(descriptionHash)], descriptionHash)
-     * Os mesmos parametros usados ao criar a proposta. Sem dependencia circular:
-     * descriptionHash = keccak256(descricao), independente do proposalId.
      */
     function gravarVencedor(bytes32 descriptionHash) external {
         if (msg.sender != timelock) revert ApenasTimelock();
@@ -113,8 +104,6 @@ contract VotingTarget {
 
         (uint8 idx, uint256 votos) = governor.winningCandidate(proposalId);
 
-        // CORREÇÃO: guard explícito — impossível se o constructor já garante consistência,
-        // mas mantido como defesa em profundidade caso o contrato seja reutilizado.
         if (idx >= candidatos.length) revert IndiceForaDaCedula(idx, candidatos.length);
 
         vencedor       = candidatos[idx];
