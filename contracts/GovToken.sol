@@ -10,8 +10,6 @@ import "@openzeppelin/contracts/utils/Nonces.sol";
  * @title GovToken — Workshop DAO
  * @notice Token de governança com claim automático.
  *
- * NOVO MECANISMO (v2 — POC sem distribuir.js)
- * ──────────────────────────────────────────────────────────────────────────
  * Qualquer carteira chama claimAndDelegate() UMA única vez.
  * O contrato:
  *   1. Verifica que o endereço ainda não fez claim.
@@ -19,17 +17,14 @@ import "@openzeppelin/contracts/utils/Nonces.sol";
  *   3. Delega automaticamente para msg.sender (ativa o voting power).
  * Tudo em uma única transação — o participante não precisa de ETH além do gas.
  *
- * O facilitador deve chamar propose() DEPOIS de um período de claim
- * (votingDelay = 50 blocos ≈ 10 min dá margem suficiente para a plateia claimar).
- *
  * CONCEITO-CHAVE: ERC20Votes
  * O Governor consulta o checkpoint do bloco do snapshot para calcular
- * o voting power. Quem chamar claimAndDelegate() ANTES do snapshot
- * vota com peso 100 wDAO. Quem chamar DEPOIS tem weight = 0.
+ * o voting power.
  *
- * SEGURANÇA (suficiente para POC)
+ * SEGURANÇA
  *   - Uma claim por endereço (hasClaimed mapping).
- *   - Não impede Sybil (múltiplas carteiras), aceitável para workshop.
+ *   - Não impede Sybil (múltiplas carteiras).
+ *   - NÃO use este padrão em produção com tokens de valor real.
  */
 contract GovToken is ERC20, ERC20Permit, ERC20Votes {
 
@@ -52,8 +47,6 @@ contract GovToken is ERC20, ERC20Permit, ERC20Votes {
         ERC20("Workshop DAO Token", "wDAO")
         ERC20Permit("Workshop DAO Token")
     {
-        // Facilitador recebe tokens e delega para si mesmo no deploy.
-        // Isso garante que ele tenha VP no snapshot quando criar a proposta.
         _mint(facilitador, CLAIM_AMOUNT);
         hasClaimed[facilitador] = true;
         _delegate(facilitador, facilitador);
@@ -63,7 +56,6 @@ contract GovToken is ERC20, ERC20Permit, ERC20Votes {
      * @notice Minta 100 wDAO e delega para si mesmo em uma única transação.
      *         Só pode ser chamado uma vez por endereço.
      *
-     * Chame ANTES do propose() para que o VP exista no snapshot.
      */
     function claimAndDelegate() external {
         if (hasClaimed[msg.sender]) revert JaFezClaim(msg.sender);
@@ -75,7 +67,7 @@ contract GovToken is ERC20, ERC20Permit, ERC20Votes {
         emit Claimed(msg.sender, CLAIM_AMOUNT);
     }
 
-    // ── Overrides obrigatórios (OZ v5) ──────────────────────────────────────
+    //  Overrides obrigatórios (OZ v5) 
 
     function nonces(address owner)
         public

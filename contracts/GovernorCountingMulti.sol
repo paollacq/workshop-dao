@@ -8,11 +8,10 @@ import {IGovernor, Governor} from "@openzeppelin/contracts/governance/Governor.s
  * @notice Modulo de contagem multi-candidato.
  *
  * POR QUE ESTE MODULO EXISTE
- * ──────────────────────────────────────────────────────────────────
  * O GovernorCountingSimple padrao tem APENAS 3 baldes de voto:
  *   support 0 = Against,  support 1 = For,  support 2 = Abstain.
  * Qualquer support > 2 reverte com GovernorInvalidVoteType.
- * Por isso uma eleicao de 3 candidatos so cabia "encaixando" cada
+ * Por isso uma eleicao de 27 candidatos so cabia "encaixando" cada
  * candidato em um balde — e mais de 3 era impossivel.
  *
  * Aqui `support` deixa de ser sim/nao/abstencao e passa a ser o

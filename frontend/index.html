@@ -6,58 +6,14 @@
 <title>Workshop DAO — Governança ao Vivo</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.4/ethers.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<!-- WalletConnect AppKit — permite conectar carteiras mobile via QR/deeplink -->
-<script type="module">
-  import { createAppKit } from 'https://esm.sh/@reown/appkit@1.6.8';
-  import { EthersAdapter } from 'https://esm.sh/@reown/appkit-adapter-ethers@1.6.8';
-  import { sepolia } from 'https://esm.sh/@reown/appkit/networks';
-
-  const ethersAdapter = new EthersAdapter();
-
-  window._appkit = createAppKit({
-    adapters: [ethersAdapter],
-    networks: [sepolia],
-    // Project ID gratuito — substitua pelo seu em cloud.reown.com para produção
-    projectId: 'b56e18d47c72ab683b10814fe9495694',
-    metadata: {
-      name: 'Workshop DAO',
-      description: 'Eleição onchain — Seleção Brasileira Copa 2026',
-      url: location.origin,
-      icons: ['https://avatars.githubusercontent.com/u/37784886'],
-    },
-    features: { analytics: false, email: false, socials: false },
-  });
-GOVTOKEN_ADDRESS = 0xFE3F8F0B3Ca999768A3Fc5d6AD6e8aaCc85d1aF5
-TIMELOCK_ADDRESS = 0x3ca640c2cd9851e9fB7dbAAdC10fC206dE9a86A9
-GOVERNOR_ADDRESS = 0xb90fF857dC0B9f2e33487C05ea95d70E1e9cBc79
-TARGET_ADDRESS   = 0x311B88185bAd789708D249545545541c4d292Ea3
-  // Expõe evento de conexão para o código legado
-  window._appkit.subscribeAccount(async (account) => {
-    if (account?.address && window._onWalletConnected) {
-      window._onWalletConnected(account.address);
-    }
-  });
-</script>
 <script>
-/*
-  COMO USAR ESTE ARQUIVO:
-  ─────────────────────────────────────────────────────────────────
-  1. Apresentador abre index.html → modo Apresentador (projetar na tela)
-     O QR code gerado na tela contém a URL completa com os endereços
-     dos contratos. A plateia scanneia e cai direto no modo Votante.
 
-  2. Alternativamente, gere o link manualmente:
-     index.html?token=0x...&gov=0x...&pid=123456...&mode=voter
 
-  CONFIGURAÇÃO RÁPIDA (edite só estas 3 linhas):
-*/
+const PRESET_TOKEN    = "0xBBAfBd0DE643D3698Ca47BD81E665F7eff460334";   // Endereço do GovToken
+const PRESET_GOVERNOR = "0x02f13E2F2B1EFcB537E3Bb4d28F3506c10C8DeA0";   // Endereço do WorkshopGovernor
+const PRESET_PROPOSAL = "92074748894069383005762373099538132902226429339859852852875428925342771849817";   // proposalId (número grande)
+const PRESET_TARGET   = "0xA71F57a01500E5f6Ef55754eb32340FB8ee0E976";   // (opcional) Endereço do VotingTarget — mostra o vencedor gravado onchain
 
-/* ↓↓↓ FACILITADOR: cole aqui após o deploy ↓↓↓ */
-const PRESET_TOKEN    = "0x5eFC97dfCd6A398D16B2163880e341fA777951cd";   // Endereço do GovToken
-const PRESET_GOVERNOR = "0x4860A8e939b1732026E0aB255b2D7748A714D631";   // Endereço do WorkshopGovernor
-const PRESET_PROPOSAL = "18148347419207298033993075065852128965952244886349858684852553473498547054991";   // proposalId (número grande)
-const PRESET_TARGET   = "0xD5b82B028E5912f4a5298d679AAB3187b434E592";   // (opcional) Endereço do VotingTarget — mostra o vencedor gravado onchain
-/* ↑↑↑ Esses valores são sobrescritos por ?token=&gov=&pid=&target= na URL ↑↑↑ */
 
 /*
   CÉDULA — o índice (idx) É o `support` enviado em castVote(proposalId, idx).
@@ -94,14 +50,14 @@ const CANDIDATOS = [
   { idx: 22, nome: "Neymar",             clube: "Santos",            pos: "ATA" },
   { idx: 23, nome: "Raphinha",           clube: "Barcelona",         pos: "ATA" },
   { idx: 24, nome: "Rayan",              clube: "Bournemouth",       pos: "ATA" },
-  { idx: 25, nome: "Rodrygo",           clube: "Real Madrid",       pos: "ATA" },  // ← adicionado
+  { idx: 25, nome: "Rodrygo",           clube: "Real Madrid",       pos: "ATA" },  
   { idx: 26, nome: "Vini Jr.",          clube: "Real Madrid",       pos: "ATA" },
 ];
 
 // Cor por posição (usada em barras, badges e destaque do líder)
 const POS_COR = { GOL: "#f59e0b", DEF: "#3b82f6", MEI: "#a855f7", ATA: "#22c55e" };
 const POS_NOME = { GOL: "Goleiros", DEF: "Defensores", MEI: "Meio-campistas", ATA: "Atacantes" };
-const candById = (i) => CANDIDATOS[i]; // idx === posição no array
+const candById = (i) => CANDIDATOS[i]; 
 
 const GOV_ABI = [
   "function state(uint256) view returns (uint8)",
@@ -160,7 +116,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter','Segoe UI',syste
 a{color:var(--primary);text-decoration:none}
 a:hover{text-decoration:underline}
 
-/* ── Loader ── */
+/* Loader */
 #loader{
   position:fixed;inset:0;background:var(--bg);
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
@@ -175,7 +131,7 @@ a:hover{text-decoration:underline}
 @keyframes spin{to{transform:rotate(360deg)}}
 .loader-text{font-size:13px;color:var(--muted)}
 
-/* ── Setup screen (quando não há endereços) ── */
+/* Setup screen (quando não há endereços) */
 #setup-screen{
   min-height:100vh;display:none;align-items:center;justify-content:center;
   padding:32px;flex-direction:column;gap:28px;
@@ -212,7 +168,7 @@ a:hover{text-decoration:underline}
 .err-msg{background:#1f0a0a;border:1px solid #4a1515;border-radius:8px;padding:10px 14px;
   font-size:13px;color:#fca5a5;margin-top:10px;display:none}
 
-/* ── Mode picker ── */
+/* Mode picker */
 #mode-picker{
   min-height:100vh;display:none;flex-direction:column;align-items:center;
   justify-content:center;gap:28px;padding:32px;
@@ -236,7 +192,7 @@ a:hover{text-decoration:underline}
 }
 .dot-green{width:8px;height:8px;border-radius:50%;background:var(--green);flex-shrink:0}
 
-/* ── APRESENTADOR ── */
+/* APRESENTADOR */
 #presenter{display:none;min-height:100vh;padding:20px;
   background:radial-gradient(ellipse 100% 40% at 50% 0%,#0a1530,var(--bg) 55%)}
 #presenter.visible{display:block}
@@ -325,7 +281,7 @@ a:hover{text-decoration:underline}
 .detail-row:last-child{border-bottom:none}
 .dk{color:var(--muted)}.dv{font-family:var(--mono);font-size:11px;text-align:right;max-width:160px;word-break:break-all}
 
-/* ── VOTANTE ── */
+/* VOTANTE */
 #voter{display:none;min-height:100vh;
   background:radial-gradient(ellipse 100% 35% at 50% 0%,#0a1a30,var(--bg) 55%)}
 #voter.visible{display:block}
@@ -409,7 +365,7 @@ a:hover{text-decoration:underline}
 .spinner{display:inline-block;width:15px;height:15px;border:2px solid rgba(255,255,255,.2);
   border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:5px}
 
-/* ── Ranking multi-candidato (Apresentador) ── */
+/* Ranking multi-candidato (Apresentador) */
 .rank-list{display:flex;flex-direction:column;gap:6px;max-height:58vh;overflow-y:auto;padding-right:6px;margin-bottom:18px}
 .rank-list::-webkit-scrollbar{width:8px}
 .rank-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
@@ -440,7 +396,7 @@ a:hover{text-decoration:underline}
 .winner-banner .wb-name{font-size:22px;font-weight:800;letter-spacing:-.02em}
 .winner-banner .wb-sub{font-size:12px;color:var(--muted);font-family:var(--mono);margin-top:3px}
 
-/* ── Votante: busca + grupos por posição ── */
+/* Votante: busca + grupos por posição */
 .v-search{width:100%;background:var(--card);border:1px solid var(--border);border-radius:10px;
   color:var(--text);font-size:14px;padding:11px 14px;margin-bottom:6px;outline:none;font-family:inherit}
 .v-search:focus{border-color:var(--primary)}
@@ -468,11 +424,10 @@ a:hover{text-decoration:underline}
     <p>Governança Descentralizada · Sepolia Testnet</p>
   </div>
   <div class="setup-box">
-    <h2>⚙️ Configurar contratos</h2>
+    <h2>Configurar contratos</h2>
     <p class="desc">
       Cole os endereços gerados pelo <code>scripts/deploy.js</code>.
       Depois, um link com esses dados será gerado automaticamente
-      — a plateia não precisa configurar nada, só scanear o QR.
     </p>
     <div class="field">
       <label>GovToken (wDAO)</label>
@@ -511,19 +466,19 @@ a:hover{text-decoration:underline}
   </div>
   <div class="mode-cards">
     <div class="mode-card" onclick="startMode('presenter')">
-      <div class="mc-icon">📡</div>
+      <div class="mc-icon"></div>
       <div class="mc-title">Apresentador</div>
-      <div class="mc-desc">Painel em tela cheia com placar ao vivo, QR code e feed de votos. Projetar para a audiência.</div>
+      <div class="mc-desc">Painel em tela cheia com placar ao vivo, QR code e feed de votos.</div>
     </div>
     <div class="mode-card" onclick="startMode('voter')">
-      <div class="mc-icon">🗳️</div>
+      <div class="mc-icon"></div>
       <div class="mc-title">Participar</div>
-      <div class="mc-desc">Interface mobile para conectar MetaMask, delegar voting power e votar onchain.</div>
+      <div class="mc-desc">Interface mobile para delegar voting power e votar onchain.</div>
     </div>
   </div>
 </div>
 
-<!-- ══════════════ APRESENTADOR ══════════════ -->
+<!--  APRESENTADOR  -->
 <div id="presenter">
   <div class="p-header">
     <div class="p-logo">
@@ -548,12 +503,12 @@ a:hover{text-decoration:underline}
   <div class="p-main">
     <div>
       <div class="winner-banner" id="p-winner">
-        <div class="wb-eye">👑 Vencedor registrado onchain</div>
+        <div class="wb-eye"> Vencedor registrado onchain</div>
         <div class="wb-name" id="p-winner-name">—</div>
         <div class="wb-sub" id="p-winner-sub"></div>
       </div>
       <div class="sec-eye">Eleição ao vivo</div>
-      <div class="sec-title">⚽ Melhor Jogador da Seleção · <span id="p-cand-count">27</span> candidatos</div>
+      <div class="sec-title"> Melhor Jogador da Seleção · <span id="p-cand-count">27</span> candidatos</div>
       <div class="rank-list" id="p-cands"></div>
       <div class="feed-card">
         <div class="feed-title"><span class="pulse" style="color:var(--green)"></span>Feed de votos onchain</div>
@@ -577,7 +532,7 @@ a:hover{text-decoration:underline}
 
       <!-- QR code -->
       <div class="info-card">
-        <h3>🗳️ Plateia participa aqui</h3>
+        <h3> Plateia participa aqui</h3>
         <div id="qr-container"></div>
         <div class="qr-url" id="qr-url-label"></div>
         <div style="margin-top:10px;font-size:12px;color:var(--muted);line-height:1.6">
@@ -600,20 +555,20 @@ a:hover{text-decoration:underline}
       <div class="info-card">
         <h3>Conceitos desta tela</h3>
         <div style="font-size:12px;color:var(--muted);line-height:1.75">
-          <p>🏛️ <strong style="color:var(--text)">Governor</strong> — motor de propostas e votação</p>
+          <p> <strong style="color:var(--text)">Governor</strong> — motor de propostas e votação</p>
           <div class="div" style="margin:7px 0"></div>
-          <p>🪙 <strong style="color:var(--text)">Voting power</strong> — wDAO delegados antes do snapshot</p>
+          <p> <strong style="color:var(--text)">Voting power</strong> — wDAO delegados antes do snapshot</p>
           <div class="div" style="margin:7px 0"></div>
-          <p>⏱️ <strong style="color:var(--text)">Quórum</strong> — participação mínima para proposta ser válida</p>
+          <p> <strong style="color:var(--text)">Quórum</strong> — participação mínima para proposta ser válida</p>
           <div class="div" style="margin:7px 0"></div>
-          <p>🔒 <strong style="color:var(--text)">Timelock</strong> — atraso entre aprovação e execução</p>
+          <p> <strong style="color:var(--text)">Timelock</strong> — atraso entre aprovação e execução</p>
         </div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ══════════════ VOTANTE ══════════════ -->
+<!--  VOTANTE  -->
 <div id="voter">
   <div class="v-shell">
     <div class="v-header">
@@ -644,23 +599,13 @@ a:hover{text-decoration:underline}
         <strong>Por que assinar?</strong> Cada voto é uma transação assinada pela sua carteira. Sem assinatura, não há voto — é isso que garante que cada endereço vote só uma vez e que tudo fique registrado na blockchain.
       </div>
 
-      <!-- Botão MetaMask (desktop / browser da MetaMask no celular) -->
-      <button class="btn-act blue" id="v-conn-btn" onclick="voterConnect()" style="margin-bottom:10px">
-        🦊 MetaMask (extensão / desktop)
-      </button>
-
-      <!-- Botão WalletConnect (qualquer carteira mobile) -->
-      <button class="btn-act out" id="v-wc-btn" onclick="voterConnectWC()" style="margin-bottom:10px">
-        📱 Carteira Mobile (WalletConnect)
-      </button>
+      <!-- Botão dinâmico: detectado automaticamente pelo JS -->
+      <div id="v-conn-btns"></div>
 
       <div class="err-msg" id="v-conn-err" style="display:none"></div>
 
-      <div style="margin-top:14px;background:var(--surface);border-radius:10px;padding:13px;font-size:12px;color:var(--muted)">
-        <strong style="color:var(--text)">No celular?</strong><br>
-        Use <strong>📱 Carteira Mobile</strong> — abre um QR code que você escaneia com MetaMask, Rainbow, Trust Wallet ou qualquer carteira WalletConnect.<br><br>
-        <strong style="color:var(--text)">Alternativa gratuita:</strong> abra este link pelo <strong>browser interno da MetaMask</strong> (menu → Browser).
-      </div>
+      <!-- Dica contextual: preenchida pelo JS conforme o ambiente -->
+      <div id="v-conn-hint" style="margin-top:14px;background:var(--surface);border-radius:10px;padding:13px;font-size:12px;color:var(--muted);display:none"></div>
     </div>
 
     <!-- Passo 2: Receber tokens e delegar -->
@@ -675,9 +620,9 @@ a:hover{text-decoration:underline}
         <div class="bal-chip"><div class="bval" id="v-bal">—</div><div class="blbl">wDAO no saldo</div></div>
         <div class="bal-chip"><div class="bval" id="v-vp" style="color:var(--amber)">—</div><div class="blbl">Voting power</div></div>
       </div>
-      <div class="info-box ok" id="v-already-del">✅ Tokens recebidos e voto ativo! Pode prosseguir.</div>
-      <div class="info-box warn" id="v-snapshot-warn">⚠️ Você ativou o voto <strong>depois</strong> do snapshot desta proposta. Seu voting power nesta eleição é <strong>zero</strong> — seu voto será aceito mas não contará no placar.</div>
-      <button class="btn-act blue" id="v-del-btn" onclick="voterDelegate()">🪙 Receber 100 wDAO e ativar voto</button>
+      <div class="info-box ok" id="v-already-del"> Tokens recebidos e voto ativo! Pode prosseguir.</div>
+      <div class="info-box warn" id="v-snapshot-warn"> Você ativou o voto <strong>depois</strong> do snapshot desta proposta. Seu voting power nesta eleição é <strong>zero</strong> — seu voto será aceito mas não contará no placar.</div>
+      <button class="btn-act blue" id="v-del-btn" onclick="voterDelegate()"> Receber 100 wDAO e ativar voto</button>
       <button class="btn-act out" id="v-skip-del" onclick="goStep(3)" style="display:none">Voto já ativo — ir para votação →</button>
       <div class="err-msg" id="v-del-err" style="display:none"></div>
     </div>
@@ -689,8 +634,8 @@ a:hover{text-decoration:underline}
       <div class="concept">
         <strong>Como funciona?</strong> Você chama <code style="background:var(--bg);padding:1px 5px;border-radius:4px">castVote(proposalId, support)</code> no Governor. Seu voting power é lido no bloco do <em>snapshot</em> — não o saldo atual — o que previne ataques.
       </div>
-      <div class="info-box info" id="v-voted-msg">✅ Você já votou nesta proposta.</div>
-      <div class="info-box warn" id="v-closed-msg">⏱️ A janela de votação está fechada no momento.</div>
+      <div class="info-box info" id="v-voted-msg"> Você já votou nesta proposta.</div>
+      <div class="info-box warn" id="v-closed-msg"> A janela de votação está fechada no momento.</div>
       <input class="v-search" id="v-search" placeholder="Buscar jogador ou clube..." oninput="filterVoterCands()" autocomplete="off" />
       <div class="v-count" id="v-count"></div>
       <div class="cands-v" id="v-cands"></div>
@@ -727,10 +672,7 @@ a:hover{text-decoration:underline}
 </div>
 
 <script>
-// ────────────────────────────────────────────────────────────────────────────
 // LEITURA DE PARÂMETROS DA URL
-// index.html?token=0x...&gov=0x...&pid=123&mode=voter
-// ────────────────────────────────────────────────────────────────────────────
 const params = new URLSearchParams(location.search);
 let CFG = {
   token:    params.get("token")    || PRESET_TOKEN,
@@ -746,7 +688,7 @@ let proposalId, tokenDecimals;
 let selectedSupport = null;
 let pollTimer = null;
 
-// ── Inicialização ────────────────────────────────────────────────────────────
+//  Inicialização 
 window.addEventListener("DOMContentLoaded", async () => {
   const hasConfig = cfgValid();
 
@@ -755,7 +697,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
-  // Config válida — carregar contratos
+  // Config válida , carregar contratos
   try {
     await loadContracts();
     hide("loader");
@@ -794,7 +736,7 @@ async function loadContracts() {
   tokenDecimals     = Number(await tokenContractRead.decimals());
 }
 
-// ── Setup: salvar e gerar URL ─────────────────────────────────────────────
+//  Setup: salvar e gerar URL 
 async function setupSave() {
   const token  = document.getElementById("s-token").value.trim();
   const gov    = document.getElementById("s-gov").value.trim();
@@ -816,7 +758,7 @@ async function setupSave() {
 
   CFG = { token, governor: gov, proposal: pid, target };
 
-  // Atualizar URL sem recarregar — gera link permanente
+  // Atualizar URL sem recarregar 
   const url = new URL(location.href);
   url.searchParams.set("token", token);
   url.searchParams.set("gov", gov);
@@ -836,11 +778,11 @@ async function setupSave() {
   }
 }
 
-// ── Modos ─────────────────────────────────────────────────────────────────
+//  Modos 
 function startMode(mode) {
   hide("mode-picker"); hide("presenter"); hide("voter");
   if (mode === "presenter") { show("presenter"); initPresenter(); }
-  else                      { show("voter");    renderVoterCands(); }
+  else                      { show("voter"); renderConnectButtons(); renderVoterCands(); }
 }
 
 function showModes() {
@@ -848,7 +790,7 @@ function showModes() {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
 }
 
-// ── APRESENTADOR ─────────────────────────────────────────────────────────
+// APRESENTADOR 
 let presenterReady = false;
 let wsStarted = false;
 
@@ -868,10 +810,9 @@ function initPresenter() {
 
 function renderPresenterCands() {
   document.getElementById("p-cand-count").textContent = CANDIDATOS.length;
-  renderRanking(CANDIDATOS.map(() => 0n)); // estado inicial (zeros) até o 1º refresh
+  renderRanking(CANDIDATOS.map(() => 0n)); 
 }
 
-// Monta a lista ordenada por votos (desc). Recebe array de BigInt, índice = candidato.
 function renderRanking(tally) {
   const total = tally.reduce((a, b) => a + b, 0n);
   const maxV  = tally.reduce((m, v) => (v > m ? v : m), 0n);
@@ -1031,7 +972,7 @@ function addFeedItem(voter, support, weight) {
   while(feed.children.length>10) feed.lastChild.remove();
 }
 
-// ── VOTANTE ───────────────────────────────────────────────────────────────
+//  VOTANTE 
 function goStep(n) {
   for(let i=1;i<=4;i++){
     const p=document.getElementById(`sp${i}`);
@@ -1051,12 +992,62 @@ function goStep(n) {
   if(n===3 && walletAddress) loadVoterVoteState();
 }
 
-// ── Conexão compartilhada — chamada tanto pelo MetaMask quanto pelo WalletConnect ──
+//  Detecção de ambiente 
+const _isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+const _isMetaMaskBrowser = !!window.ethereum?.isMetaMask && _isMobile;
+
+// Monta os botões certos para o ambiente detectado e exibe a dica adequada
+function renderConnectButtons() {
+  const wrap = document.getElementById("v-conn-btns");
+  const hint = document.getElementById("v-conn-hint");
+  if (!wrap) return;
+
+  if (_isMetaMaskBrowser) {
+    // Rodando dentro do browser interno da MetaMask — caminho direto
+    wrap.innerHTML = `
+      <button class="btn-act blue" id="v-conn-btn" onclick="voterConnect()" style="margin-bottom:10px">
+        🦊 Conectar com MetaMask
+      </button>`;
+    hint.style.display = "block";
+    hint.innerHTML = `<strong style="color:var(--text)"> MetaMask detectada!</strong><br>
+      Você está no browser interno da MetaMask. Clique em conectar para assinar.`;
+
+  } else if (_isMobile) {
+    // Mobile em browser externo (Chrome, Safari etc.) — oferecer deeplink + WC
+    const currentUrl = location.href;
+    // O deeplink abre a MetaMask mobile e carrega o DApp no browser interno dela
+    const mmDeeplink = "https://metamask.app.link/dapp/" + location.host + location.pathname + location.search;
+
+    wrap.innerHTML = `
+      <a href="${mmDeeplink}" id="v-mm-deeplink" style="display:block;margin-bottom:10px;text-decoration:none">
+        <button class="btn-act blue" style="width:100%">
+          🦊 Abrir com MetaMask
+        </button>
+      </a>`;
+    hint.style.display = "block";
+    hint.innerHTML = `
+      <strong style="color:var(--text)">No celular?</strong><br>
+      <strong>Abrir com MetaMask</strong> leva você direto para o DApp dentro do app — é a forma mais simples.`;
+
+  } else {
+    // Desktop — extensão MetaMask
+    wrap.innerHTML = `
+      <button class="btn-act blue" id="v-conn-btn" onclick="voterConnect()" style="margin-bottom:10px">
+        🦊 MetaMask 
+      </button>`;
+    hint.style.display = "block";
+    hint.innerHTML = `
+      <strong style="color:var(--text)">No celular?</strong><br>
+      Escaneie o QR code na tela do apresentador com a câmera — o link abre automaticamente no modo de votação.`;
+  }
+}
+
+//  Conexão compartilhada — chamada por todos os caminhos 
 async function _setupSigner(provider) {
   signer = await provider.getSigner();
   walletAddress = await signer.getAddress();
 
-  // Garantir Sepolia
+  // Garantir Sepolia (chainId 11155111 = 0xaa36a7)
   const network = await provider.getNetwork();
   if (network.chainId !== 11155111n) {
     try {
@@ -1075,55 +1066,34 @@ async function _setupSigner(provider) {
   return true;
 }
 
-// ── MetaMask / extensão de browser ───────────────────────────────────────
+//  MetaMask via window.ethereum (extensão desktop ou browser interno MM) 
 async function voterConnect() {
   if (!window.ethereum) {
-    showErr("v-conn-err", "MetaMask não encontrada. Use o botão 📱 Carteira Mobile ou abra este link pelo browser interno da MetaMask.");
+    showErr("v-conn-err", "MetaMask não encontrada. No celular, use o botão 'Abrir com MetaMask' acima.");
     return;
   }
   const btn = document.getElementById("v-conn-btn");
-  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Conectando...';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Conectando...'; }
   try {
     await window.ethereum.request({ method: "eth_requestAccounts" });
     const cid = await window.ethereum.request({ method: "eth_chainId" });
     if (cid !== "0xaa36a7") {
-      try { await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: "0xaa36a7" }] }); }
-      catch { showErr("v-conn-err", "Troque para a rede Sepolia na MetaMask."); btn.disabled=false; btn.textContent="🦊 MetaMask (extensão / desktop)"; return; }
+      try {
+        await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: "0xaa36a7" }] });
+      } catch {
+        showErr("v-conn-err", "Troque para a rede Sepolia na MetaMask.");
+        if (btn) { btn.disabled = false; btn.textContent = "🦊 Conectar com MetaMask"; }
+        return;
+      }
     }
     const prov = new ethers.BrowserProvider(window.ethereum);
     await _setupSigner(prov);
   } catch(e) {
     showErr("v-conn-err", e.message || String(e));
-    btn.disabled=false; btn.textContent="🦊 MetaMask (extensão / desktop)";
+    if (btn) { btn.disabled = false; btn.textContent = "🦊 Conectar com MetaMask"; }
   }
 }
 
-// ── WalletConnect / carteiras mobile ─────────────────────────────────────
-async function voterConnectWC() {
-  const btn = document.getElementById("v-wc-btn");
-  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Abrindo carteira...';
-  try {
-    if (!window._appkit) throw new Error("WalletConnect não carregou. Tente recarregar a página.");
-
-    // Abre o modal do AppKit (QR code ou deeplink para o celular)
-    await window._appkit.open();
-
-    // A conexão é assíncrona — o _appkit.subscribeAccount dispara _onWalletConnected
-    window._onWalletConnected = async (address) => {
-      try {
-        const walletProvider = window._appkit.getWalletProvider();
-        const prov = new ethers.BrowserProvider(walletProvider);
-        await _setupSigner(prov);
-      } catch(e) {
-        showErr("v-conn-err", e.message || String(e));
-      }
-    };
-  } catch(e) {
-    showErr("v-conn-err", e.message || String(e));
-  } finally {
-    btn.disabled = false; btn.textContent = "📱 Carteira Mobile (WalletConnect)";
-  }
-}
 
 async function loadVoterBals() {
   // Lê o snapshot para verificar o VP real nesta proposta.
@@ -1167,7 +1137,7 @@ async function voterDelegate() {
       goStep(3);
     } else {
       showErr("v-del-err", e.reason || e.message || String(e));
-      btn.disabled = false; btn.textContent = "🪙 Receber 100 wDAO e ativar voto";
+      btn.disabled = false; btn.textContent = " Receber 100 wDAO e ativar voto";
     }
   }
 }
@@ -1303,11 +1273,10 @@ async function castVoterVote() {
   }
 }
 
-// ── Utils ─────────────────────────────────────────────────────────────────
+//  Utils 
 function hide(id){ document.getElementById(id).style.display="none" }
 function show(id){
   const e=document.getElementById(id);
-  // mode-picker usa flexbox; as views principais usam block
   e.style.display=(id==="mode-picker")?"flex":"block";
 }
 function el(id){ return document.getElementById(id) }
