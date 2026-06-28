@@ -20,8 +20,6 @@ coverage.json
 
 # Scripts — outputs gerados durante execução
 ignition/deployments/
-scripts
-README.md
 
 # Logs
 *.log
