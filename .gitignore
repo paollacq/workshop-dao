@@ -6,6 +6,9 @@ node_modules/
 .env.local
 .env.*.local
 
+# Config do frontend com endereços de contrato (use config.example.js como base)
+frontend/config.js
+
 # Artefatos gerados pelo Hardhat (recompilados com `npm run compile`)
 artifacts/
 cache/
